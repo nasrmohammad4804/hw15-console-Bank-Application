@@ -25,7 +25,10 @@ public class BankCard extends BaseEntity<Long> {
 
     public static final String  CVV2_NUMBER="cvv2_number";
     public static final String  CARD_NUMBER="card_number";
-    public static final String TRANSACTION_OF_BANK_CARD="transaction_bank_card";
+
+    public BankCard(Long id){
+        super.setId(id);
+    }
 
     @Column(name = CARD_NUMBER)
     private String cardNumber;
@@ -39,5 +42,10 @@ public class BankCard extends BaseEntity<Long> {
     @OneToMany(mappedBy = "bankCard",cascade = CascadeType.ALL)
     private List<Account> accountList=new ArrayList<>();
 
+    @ManyToOne
+    @JoinColumn(name =User.USER_ID )
+    private Customer user;
+
     private String password;
+
 }

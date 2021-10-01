@@ -1,12 +1,12 @@
 package service.util;
 
-import domain.User;
+import domain.Customer;
 
 public class SecurityContext {
 
-    private static User currentUser;
+    private static Customer currentUser; 
 
-    public static void login(User user)  {
+    public static void login(Customer user)  {
 
         currentUser = user;
     }
@@ -15,7 +15,7 @@ public class SecurityContext {
         currentUser = null;
     }
 
-    public static User getCurrentUser()  {
+    public static Customer getCurrentUser()  {
         return currentUser;
     }
 }

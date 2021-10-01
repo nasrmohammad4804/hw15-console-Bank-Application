@@ -1,10 +1,13 @@
 package domain.embeddable;
 
+import base.domain.BaseEntity;
 import domain.enumeration.TransactionType;
 import lombok.*;
 import javax.persistence.Embeddable;
+import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Embeddable

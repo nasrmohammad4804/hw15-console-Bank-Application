@@ -6,6 +6,7 @@ import domain.Customer;
 import domain.User;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface CustomerRepository  extends BaseRepository<Customer,Long> {
 
@@ -13,6 +14,6 @@ public interface CustomerRepository  extends BaseRepository<Customer,Long> {
 
     List<String> allNationalCode();
 
-    Customer findByNationalCode(String nationalCode);
+    Optional<Customer> findByNationalCode(String nationalCode);
 
 }

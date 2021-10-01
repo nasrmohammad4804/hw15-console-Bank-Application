@@ -5,6 +5,7 @@ import domain.embeddable.BankId;
 import domain.embeddable.Transaction;
 import domain.enumeration.AccountType;
 import lombok.*;
+import org.hibernate.annotations.NaturalId;
 
 import javax.persistence.*;
 import java.time.LocalDateTime;
@@ -12,7 +13,6 @@ import java.util.ArrayList;
 import java.util.*;
 
 import static domain.BankCard.CARD_NUMBER;
-import static domain.BankCard.TRANSACTION_OF_BANK_CARD;
 
 @Entity
 @Setter
@@ -20,11 +20,12 @@ import static domain.BankCard.TRANSACTION_OF_BANK_CARD;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class Account extends BaseEntity<Long> {
 
     public static final String ACCOUNT_NUMBER = "account_number";
     public static final String CREATED_ACCOUNT = "created_account";
+    public static final String ACCOUNT_TRANSACTION="account_transaction";
+    public static final String MY_BANK_CARD=CARD_NUMBER;
 
     @Column(name = ACCOUNT_NUMBER)
     private String accountNumber;
@@ -41,15 +42,16 @@ public class Account extends BaseEntity<Long> {
     })
     private Bank bank;
 
-    @ManyToOne(cascade = CascadeType.ALL)
-    @JoinColumn(name = CARD_NUMBER)
+
+    @ManyToOne
+    @JoinColumn(name = MY_BANK_CARD)  //account.setBankCard(bankCard)
     private BankCard bankCard;
 
     @ManyToOne
     private User user;
 
     @ElementCollection
-    @JoinTable(name = TRANSACTION_OF_BANK_CARD,joinColumns = @JoinColumn(referencedColumnName = CARD_NUMBER))
+    @JoinTable(name = ACCOUNT_TRANSACTION,joinColumns = @JoinColumn(name = CARD_NUMBER))
     private List<Transaction> transactionList=new ArrayList<>();
 
     @Enumerated(value = EnumType.STRING)

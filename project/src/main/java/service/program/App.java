@@ -1,5 +1,6 @@
 package service.program;
 
+import domain.User;
 import service.impl.AccountServiceImpl;
 import service.impl.BankCardServiceImpl;
 import service.impl.BankServiceImpl;
@@ -19,12 +20,13 @@ public class App {
         customerService = ApplicationContext.getCustomerService();
         accountService = ApplicationContext.getAccountService();
         bankCardService = ApplicationContext.getBankcardService();
-        bankService=ApplicationContext.getBankService();
+        bankService = ApplicationContext.getBankService();
 
         customerService.initialize();
         accountService.initialize();
+        bankCardService.initialize();
 
-        if(bankService.countAll()==0)
+        if (bankService.countAll() == 0)
             bankService.addDefaultBank();
 
     }
@@ -41,23 +43,25 @@ public class App {
             case 1 -> {
 
                 try {
-                    customerService.register();
-                    userPanel();
+
+                    userPanel(customerService.register());
                 } catch (Exception e) {
                     System.out.println(e.getMessage());
                     e.printStackTrace();
                 }
+                start();
             }
             case 2 -> {
 
                 try {
-                    customerService.login();
-                    userPanel();
+
+                    userPanel(customerService.login());
                 } catch (Exception e) {
                     System.out.println(e.getMessage());
                     e.printStackTrace();
 //                    CustomerServiceImpl.NUMBER_ALLOWED_LOGIN++;
                 }
+                start();
             }
             case 3 -> {
                 accountService.showCurrentAccountOfUserWithNationalCode(getNationalCode());
@@ -77,7 +81,7 @@ public class App {
         }
     }
 
-    private void userPanel() {
+    private void userPanel(User user) {
 
         System.out.println("1.open account");
         System.out.println("2.cart to cart");
@@ -91,45 +95,45 @@ public class App {
 
             case 1 -> {
                 try {
-                    accountService.openAccountWhenUserRegistered();
+                    accountService.openAccountWhenUserRegistered(user);
 
 
                 } catch (Exception e) {
                     System.out.println(e.getMessage());
                     e.printStackTrace();
                 }
-                userPanel();
+                userPanel(user);
             }
             case 2 -> {
                 try {
 
-                    customerService.cartToCart();
+                    customerService.cartToCart(user);
 
                 } catch (Exception e) {
                     System.out.println(e.getMessage());
                     e.printStackTrace();
                 }
-                userPanel();
+                userPanel(user);
             }
             case 3 -> {
 
                 try {
-                    accountService.withdrawal();
+                    accountService.withdrawal(user);
                 } catch (Exception e) {
                     System.out.println(e.getMessage());
                     e.printStackTrace();
                 }
-                userPanel();
+                userPanel(user);
             }
             case 4 -> {
 
                 try {
-                    customerService.showAllInventoryOfAccount();
-                }catch (Exception e){
+                    customerService.showAllInventoryOfAccount(user);
+                } catch (Exception e) {
                     System.out.println(e.getMessage());
                     e.printStackTrace();
                 }
-                userPanel();
+                userPanel(user);
             }
             case 5 -> {
                 try {
@@ -139,24 +143,29 @@ public class App {
                     System.out.println(e.getMessage());
                     e.printStackTrace();
                 }
-                userPanel();
+                userPanel(user);
             }
             case 6 -> {
                 try {
 
-                    bankCardService.saveOrChangePassword();
+                    bankCardService.saveOrChangePassword(user);
                 } catch (Exception e) {
                     System.out.println(e.getMessage());
                     e.printStackTrace();
                 }
-                userPanel();
+                userPanel(user);
             }
             case 7 -> {
                 SecurityContext.logout();
                 start();
             }
+
+
         }
     }
+
+
+
 
     private String getNationalCode() {
         System.out.println("enter your nationalCode");

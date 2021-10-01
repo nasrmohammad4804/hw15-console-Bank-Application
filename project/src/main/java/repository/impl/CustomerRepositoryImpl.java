@@ -11,6 +11,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.criteria.CriteriaQuery;
 import javax.persistence.criteria.Root;
 import java.util.List;
+import java.util.Optional;
 
 public class CustomerRepositoryImpl extends BaseRepositoryImpl<Customer, Long>
         implements CustomerRepository {
@@ -28,16 +29,16 @@ public class CustomerRepositoryImpl extends BaseRepositoryImpl<Customer, Long>
     public List<Account> allAccountInBankForCurrentUserExists(String bankName) {
 
         return entityManager.createQuery("select a from Account as a where" +
-                " a.bank.id.bankName=:myBankName ", Account.class)
-                        .setParameter("myBankName", bankName)
-                .getResultList();
+                " a.bank.id.bankName=:myBankName and a.user.nationalCode=:national_code ", Account.class)
+                .setParameter("myBankName", bankName).setParameter
+                        ("national_code", SecurityContext.getCurrentUser().getNationalCode()).getResultList();
     }
 
     @Override
     public List<String> allNationalCode() {
 
-        CriteriaQuery<String> criteriaQuery=criteriaBuilder.createQuery(String.class);
-        Root<User> root=criteriaQuery.from(User.class);
+        CriteriaQuery<String> criteriaQuery = criteriaBuilder.createQuery(String.class);
+        Root<User> root = criteriaQuery.from(User.class);
 
         criteriaQuery.select(root.get("nationalCode"));
 
@@ -45,8 +46,16 @@ public class CustomerRepositoryImpl extends BaseRepositoryImpl<Customer, Long>
     }
 
     @Override
-    public Customer findByNationalCode(String nationalCode) {
-        return entityManager.createQuery("select c from Customer as c where c.nationalCode=:national_code",
-                Customer.class).setParameter("national_code",nationalCode).getSingleResult();
+    public Optional<Customer> findByNationalCode(String nationalCode) {
+        Optional<Customer> optional = Optional.empty();
+        try {
+            Customer customer = entityManager.createQuery("select c from Customer as c where" +
+                            " c.nationalCode=:national_code",
+                    Customer.class).setParameter("national_code", nationalCode).getSingleResult();
+
+            return Optional.of(customer);
+        } catch (Exception e) {
+            return optional;
+        }
     }
 }

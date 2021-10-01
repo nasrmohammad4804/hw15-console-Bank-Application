@@ -10,7 +10,7 @@ import lombok.Setter;
 
 import javax.persistence.*;
 import java.time.LocalDate;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -46,12 +46,13 @@ public class User extends BaseEntity<Long> {
     @Transient
     protected UserType userType;
 
-    @OneToMany
-    @JoinColumn(name =USER_ID )
-    private List<BankCard> bankCards=new LinkedList<>();
 
 
-    public User(String firstName, String lastName, LocalDate birthDay, String nationalCode, UserType userType) {
+    public User(Long id){
+        this.setId(id);
+    }
+
+    public User(String firstName, String lastName, LocalDate birthDay, String nationalCode, UserType userType ) {
         this.firstName = firstName;
         this.lastName = lastName;
         this.birthDay = birthDay;
@@ -61,4 +62,10 @@ public class User extends BaseEntity<Long> {
 
     @Embedded
     protected Address address;
+
+    @OneToMany(mappedBy = "user",cascade = CascadeType.ALL)
+    private List<BankCard> bankCards=new ArrayList<>();  //bankCard.get(0).
+
+    @Transient //my field for when user login and enter bank name save bank_name to SecurityContext
+    private String bankName;
 }

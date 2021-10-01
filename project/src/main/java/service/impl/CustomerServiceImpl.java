@@ -19,6 +19,7 @@ import service.util.SecurityContext;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -38,7 +39,8 @@ public class CustomerServiceImpl extends BaseServiceImpl<Customer, Long, Custome
         super(repository);
 
     }
-    public void initialize(){
+
+    public void initialize() {
         accountService = ApplicationContext.getAccountService();
         bankCardService = ApplicationContext.getBankcardService();
         bankService = ApplicationContext.getBankService();
@@ -50,7 +52,7 @@ public class CustomerServiceImpl extends BaseServiceImpl<Customer, Long, Custome
     }
 
     @Override
-    public void register() throws Exception {
+    public User register() throws Exception {
         System.out.println("enter firstName");
         String firstName = ApplicationContext.getScannerForString().nextLine();
 
@@ -69,31 +71,28 @@ public class CustomerServiceImpl extends BaseServiceImpl<Customer, Long, Custome
         Customer customer = Customer.builder().firstName(firstName).lastName(lastName).birthDay(birthDay)
                 .userType(UserType.CUSTOMER).nationalCode(nationalCode).build();
 
-
         entityManager.getTransaction().begin();
-//        Account account = accountService.openAccount();
-
         entityManager.persist(customer);
-//        entityManager.persist(account);
-        entityManager.getTransaction().commit();
-
-        //new
-        entityManager.refresh(customer);
         SecurityContext.login(customer);
-        accountService.openAccountWhenUserRegistered();
-        //new
+
+        Account account = accountService.openAccount();
+        customer.getBankCards().add(account.getBankCard());
+        entityManager.persist(account.getBankCard());
+        entityManager.persist(account); 
+        customer.getBankCards().get(0).getAccountList().add(account);
+
+        entityManager.getTransaction().commit();
+        return customer;
     }
 
     @Override
-    public void login() throws Exception {
+    public User login() throws Exception {
 
         System.out.println("enter nationalCode");
         String nationalCode = ApplicationContext.getScannerForString().nextLine();
 
         if (!repository.allNationalCode().contains(nationalCode))
             throw new UserNotFoundException("user not found");
-
-
 
         System.out.println("enter your bankName");
         String bankName = ApplicationContext.getScannerForString().nextLine();
@@ -102,26 +101,30 @@ public class CustomerServiceImpl extends BaseServiceImpl<Customer, Long, Custome
                 (x -> x.getId().getBankName()).collect(Collectors.toList()).contains(bankName))
             throw new BankNotFoundException("bank with name not found exception");
 
+
         BankCard bankCard = bankCardService.findBankCardOfUserWithBankNameAndNationalCode(bankName, nationalCode);
+
         System.out.println("enter your password");
         String password = ApplicationContext.getScannerForString().nextLine();
 
-        if (!bankCard.getPassword().equals(password)){
+        if (!bankCard.getPassword().equals(password)) {
             //todo if 3 time wrong password block account
             throw new PasswordNotValidException("password dont correct");
         }
 
-        User user = repository.findByNationalCode(nationalCode);
+        Optional<Customer> customer = repository.findByNationalCode(nationalCode);
+        SecurityContext.login(customer.get());
 
-        user.getBankCards().add(bankCard);
-        SecurityContext.login(user);
+        SecurityContext.getCurrentUser().setBankName(bankName);
+        customer.get().getBankCards().add(bankCard);
+        return customer.get();
     }
 
     @Override
-    public void cartToCart()  {
+    public void cartToCart(User user) {
 
         try {
-            Account myAccount = checkInformationMyAccount();
+            Account myAccount = checkInformationMyAccount(user);
             long amount = checkAccountHasInventorySameTransferAmount(myAccount);
             if (amount == 0)
                 throw new Exception("inventory is not enough !!!");
@@ -145,16 +148,17 @@ public class CustomerServiceImpl extends BaseServiceImpl<Customer, Long, Custome
         } catch (Exception e) {
             System.out.println(e.getMessage());
             System.out.print("\t\t try again\n");
-            cartToCart();
+            cartToCart(user);
         }
     }
 
     @Override
-    public void showAllInventoryOfAccount() throws Exception {
+    public void showAllInventoryOfAccount(User user) throws Exception {
 
-        List<Account> accounts = SecurityContext.getCurrentUser().getBankCards().get(0).getAccountList();
+        List<Account> accounts = user.getBankCards().get(0).getAccountList();
         System.out.println("enter witch one account from   \n " +
-                accounts.stream().map(x -> x.getAccountType().name()).collect(Collectors.joining()));
+                accounts.stream().map(x -> x.getAccountType().name())
+                        .collect(Collectors.joining(",","(",")")));
 
         String type = ApplicationContext.getScannerForString().nextLine();
 
@@ -164,14 +168,14 @@ public class CustomerServiceImpl extends BaseServiceImpl<Customer, Long, Custome
         Account account = accounts.stream().filter(x -> x.getAccountType().name().equals(type)).findFirst().get();
 
 
-        if ( Transaction.TRANSACTION_HARVEST_WAGE > account.getInventory())
+        if (Transaction.TRANSACTION_HARVEST_WAGE > account.getInventory())
             throw new Exception("dont money enough");
 
-        account.setInventory(account.getInventory() - (Transaction.TRANSACTION_HARVEST_WAGE ));
+        account.setInventory(account.getInventory() - (Transaction.TRANSACTION_HARVEST_WAGE));
         System.out.println("operation successfully withdrawal :" +
-              "with wage" + Transaction.TRANSACTION_HARVEST_WAGE + "Toman");
+                "with wage   " + Transaction.TRANSACTION_HARVEST_WAGE + "    Toman");
 
-        System.out.println("inventory of "+account.getAccountType().name()+"  is : "+account.getInventory());
+        System.out.println("inventory of " + account.getAccountType().name() + "  is : " + account.getInventory());
         accountService.update(account); //call super class of accountServiceImpl it is BaseServiceImpl
 
 
@@ -186,25 +190,25 @@ public class CustomerServiceImpl extends BaseServiceImpl<Customer, Long, Custome
 
     }
 
-    private Account checkInformationMyAccount() throws Exception {
+    private Account checkInformationMyAccount(User user) throws Exception {
 
         System.out.println("enter cardNumber of account");
-        User user = SecurityContext.getCurrentUser();
 
         String cardNumber = ApplicationContext.getScannerForString().nextLine();
 
-        if(!cardNumber.matches(SecurityContext.getCurrentUser().getBankCards().get(0).getCardNumber()))
+        if (!cardNumber.matches(user.getBankCards().get(0).getCardNumber()))
             throw new Exception("cardNumber not valid must");
 
-        System.out.println("enter account type from "+SecurityContext.getCurrentUser().getBankCards().get(0)
-        .getAccountList().stream().map(x -> x.getAccountType().name()).collect(Collectors.joining()));
+        System.out.println("enter account type from " + user.getBankCards().get(0)
+                .getAccountList().stream().map(x -> x.getAccountType().name())
+                .collect(Collectors.joining(",","(",")")));
 
-        String type=ApplicationContext.getScannerForString().nextLine();
+        String type = ApplicationContext.getScannerForString().nextLine();
         Optional<Account> myAccount = user.getBankCards().get(0).getAccountList().
-                stream().filter(x -> x.getAccountNumber().equals(type)).findFirst();
+                stream().filter(x -> x.getAccountType().name().equals(type)).findFirst();
 
         if (myAccount.isEmpty())
-            throw new Exception("you have dont any account with accountNumber in bank ");
+            throw new Exception("you have dont any account with accountType in bank ");
 
         System.out.println("enter cvv2");
         String cvv2 = ApplicationContext.getScannerForString().nextLine();
@@ -215,23 +219,24 @@ public class CustomerServiceImpl extends BaseServiceImpl<Customer, Long, Custome
         Predicate<String> predicate1 = (x -> x.equals(myAccount.get().getBankCard().getCvv2Number()));
         Predicate<LocalDate> predicate2 = (x -> x.equals(myAccount.get().getBankCard().getExpiration()));
 
-        boolean resultOfSecondPassword=secondPasswordIsValid();
+        boolean resultOfSecondPassword = secondPasswordIsValid();
 
-        if ( !(predicate1.test(cvv2) && predicate2.test(expire) && resultOfSecondPassword) ) {
+        if (!(predicate1.test(cvv2) && predicate2.test(expire) && resultOfSecondPassword)) {
             throw new Exception("cvv2 or expire time or secondPassword is wrong try again ");
         }
         return myAccount.get();
     }
-    private boolean secondPasswordIsValid(){
-        Random random=new Random();
 
-        int secondPassword=random.nextInt(3000)+1000;
-        System.out.println("your secondPassword is :"+secondPassword);
+    private boolean secondPasswordIsValid() {
+        Random random = new Random();
+
+        int secondPassword = random.nextInt(3000) + 1000;
+        System.out.println("your secondPassword is :" + secondPassword);
 
         System.out.println("enter secondPassword");
-        int mySecondPassword=ApplicationContext.getScannerForInteger().nextInt();
+        int mySecondPassword = ApplicationContext.getScannerForInteger().nextInt();
 
-        if(secondPassword==mySecondPassword)
+        if (secondPassword == mySecondPassword)
             return true;
 
         else secondPasswordIsValid();

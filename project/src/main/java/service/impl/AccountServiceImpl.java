@@ -4,32 +4,26 @@ import base.exception.BankNotFoundException;
 import base.exception.BranchNotFoundException;
 import base.exception.NotSuitableBankCardNumberFormatException;
 import base.service.impl.BaseServiceImpl;
-import domain.Account;
-import domain.Bank;
-import domain.BankCard;
+import domain.*;
 import domain.embeddable.Transaction;
 import domain.enumeration.AccountType;
 import domain.enumeration.BankType;
 import domain.enumeration.TransactionType;
 import repository.impl.AccountRepositoryImpl;
-import repository.impl.BankRepositoryImpl;
 import service.AccountService;
 import service.util.ApplicationContext;
-import service.util.HibernateUtil;
 import service.util.SecurityContext;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-;
 
 public class AccountServiceImpl extends BaseServiceImpl<Account, Long, AccountRepositoryImpl>
         implements AccountService {
@@ -44,17 +38,28 @@ public class AccountServiceImpl extends BaseServiceImpl<Account, Long, AccountRe
         super(repository);
         random = new Random();
     }
-    public void initialize(){
+
+    public void initialize() {
         this.customerService = ApplicationContext.getCustomerService();
-        this.bankService =ApplicationContext.getBankService();
+        this.bankService = ApplicationContext.getBankService();
     }
 
     @Override
     public Account openAccount() throws Exception {
         String result = getNameOfBank();
 
+        SecurityContext.getCurrentUser().setBankName(result);
+
         List<Account> listOfAccountConfirmInBank = customerService.allAccountInBankForCurrentUserExists(result);
-        System.out.println("enter want you type account in bank  ");
+        System.out.print("enter want you type account in bank from ");
+
+        String selectedAccount = Arrays.stream(AccountType.values()).filter(x -> !listOfAccountConfirmInBank.stream()
+                .map(Account::getAccountType)
+                .collect(Collectors.toList()).contains(x)).
+                map(Enum::name).collect(Collectors.joining(",", "(", ")"));
+
+        System.out.println("   " + selectedAccount);
+
         AccountType accountType = AccountType.valueOf(ApplicationContext.getScannerForString().nextLine());
 
         if (listOfAccountConfirmInBank.stream().map(Account::getAccountType)
@@ -84,30 +89,36 @@ public class AccountServiceImpl extends BaseServiceImpl<Account, Long, AccountRe
 
         Account account;
 
+        if (listOfAccountConfirmInBank.isEmpty())
+            account = createAccountWithCreateBankCard(accountNumber, accountType, bankOfConfirmedAccount);
+        else {
+            BankCard bankCard = listOfAccountConfirmInBank.get(0).getBankCard();
 
-        if (listOfAccountConfirmInBank.isEmpty()) {
+            account = createAccountWithOutCreateBankCard(accountNumber, accountType, bankOfConfirmedAccount);
+            account.setTransactionList(new ArrayList<>());
+            account.setBankCard(bankCard);
 
-            account = Account.builder().accountNumber(accountNumber).accountType(accountType)
-                    .inventory(resultOfInventoryWhenAddAccount()).user(SecurityContext.getCurrentUser())
-                    .bank(bankOfConfirmedAccount).bankCard(createBankCard()).bank(bankOfConfirmedAccount).build();
-        } else {
-            BankCard bankCard = listOfAccountConfirmInBank.stream().filter
-                    (x -> x.getBank().equals(bankOfConfirmedAccount)).map(Account::getBankCard).findFirst().get();
-
-            //new
-
-            //new
-
-            account = Account.builder().accountNumber(accountNumber).accountType(accountType).bank
-                    (bankOfConfirmedAccount).inventory(resultOfInventoryWhenAddAccount())
-                    .user(SecurityContext.getCurrentUser())
-                    .bankCard(bankCard).bank(bankOfConfirmedAccount).build();
         }
-
-        //new
-
-        //new
         return account;
+    }
+
+    private Account createAccountWithOutCreateBankCard(String accountNumber, AccountType accountType, Bank bankOfConfirmedAccount) {
+
+        return Account.builder().accountNumber(accountNumber).accountType(accountType).bank
+                (bankOfConfirmedAccount).inventory(resultOfInventoryWhenAddAccount()).
+                createdAccount(LocalDateTime.now()).user(new User(SecurityContext.getCurrentUser().getId()))
+                .bank(bankOfConfirmedAccount).build();
+    }
+
+    private Account createAccountWithCreateBankCard(String accountNumber, AccountType accountType, Bank bankOfConfirmedAccount) throws Exception {
+
+        BankCard bankCard=createBankCard();
+        Account account= Account.builder().accountNumber(accountNumber).accountType(accountType).createdAccount
+                (LocalDateTime.now()).inventory(resultOfInventoryWhenAddAccount())
+                .user(SecurityContext.getCurrentUser())
+                .bank(bankOfConfirmedAccount).bankCard(bankCard).bank(bankOfConfirmedAccount)
+                .transactionList(new ArrayList<>()).build();
+                return account;
     }
 
     @Override
@@ -117,11 +128,12 @@ public class AccountServiceImpl extends BaseServiceImpl<Account, Long, AccountRe
     }
 
     @Override
-    public void withdrawal() throws Exception {
+    public void withdrawal(User user) throws Exception {
 
-        List<Account> accountList = SecurityContext.getCurrentUser().getBankCards().get(0).getAccountList();
+        List<Account> accountList = user.getBankCards().get(0).getAccountList();
         System.out.println("enter witch one account from  \n " +
-                accountList.stream().map(x -> x.getAccountType().name()).collect(Collectors.joining()));
+                accountList.stream().map(x -> x.getAccountType().name())
+                        .collect(Collectors.joining(",","(",")")));
 
         String type = ApplicationContext.getScannerForString().nextLine();
 
@@ -136,9 +148,9 @@ public class AccountServiceImpl extends BaseServiceImpl<Account, Long, AccountRe
         if (amount > account.getInventory())
             throw new Exception("dont money enough");
 
-        account.setInventory(account.getInventory() - ( amount));
+        account.setInventory(account.getInventory() - (amount));
         System.out.println("operation successfully withdrawal amount :" +
-                " " + amount + "Toman" );
+                " " + amount + "Toman");
 
 
         account.getTransactionList().add(new Transaction(TransactionType.HARVEST, amount, LocalDateTime.now()));
@@ -148,21 +160,21 @@ public class AccountServiceImpl extends BaseServiceImpl<Account, Long, AccountRe
     @Override
     public void showAllTransactionFromSpecifiedTime() throws Exception {
 
-        System.out.println("enter bankName");
-        String bankName = ApplicationContext.getScannerForString().nextLine();
+        String bankName = SecurityContext.getCurrentUser().getBankName();
+
         System.out.println("enter accountNumber");
         String accountNumber = ApplicationContext.getScannerForString().nextLine();
         Account account = repository.findAccountWithAccountNumber(accountNumber, bankName);
 
         System.out.println("enter date to calculated !!!");
-        LocalDate date=LocalDate.parse(ApplicationContext.getScannerForString().nextLine());
+        LocalDate date = LocalDate.parse(ApplicationContext.getScannerForString().nextLine());
 
         System.out.println("enter time to calculated !!!");
-        LocalTime time=LocalTime.parse(ApplicationContext.getScannerForString().nextLine());
-        LocalDateTime from=LocalDate.from(date).atTime(time);
+        LocalTime time = LocalTime.parse(ApplicationContext.getScannerForString().nextLine());
+        LocalDateTime from = LocalDate.from(date).atTime(time);
 
-       account.getTransactionList().stream().filter(x -> x.getTransactionTime().isAfter(from))
-               .forEach(System.out::println);
+        account.getTransactionList().stream().filter(x -> x.getTransactionTime().isAfter(from))
+                .forEach(System.out::println);
     }
 
     private Long resultOfInventoryWhenAddAccount() {
@@ -182,14 +194,10 @@ public class AccountServiceImpl extends BaseServiceImpl<Account, Long, AccountRe
         };
     }
 
-    public void openAccountWhenUserRegistered() throws Exception {
+    public void openAccountWhenUserRegistered(User user) throws Exception {
         Account account = openAccount();
+        user.getBankCards().get(0).getAccountList().add(account); //new
         super.save(account);
-        //new
-        SecurityContext.getCurrentUser().getBankCards().add(account.getBankCard());
-        SecurityContext.getCurrentUser().getBankCards().get(0).getAccountList().add(account);
-
-        //new
     }
 
     private String getNameOfBank() throws Exception {
@@ -221,7 +229,8 @@ public class AccountServiceImpl extends BaseServiceImpl<Account, Long, AccountRe
         LocalDate expireTime = LocalDate.of(LocalDate.now().getYear() + 4, LocalDate.now().getMonth().getValue(),
                 LocalDate.now().getDayOfMonth());
 
-        return BankCard.builder().cardNumber(bankCardNumber).cvv2Number(cvv2).expiration(expireTime).build();
+        return  BankCard.builder().cardNumber(bankCardNumber).cvv2Number(cvv2).expiration(expireTime)
+                .accountList(new ArrayList<>()).user(new Customer(SecurityContext.getCurrentUser().getId())).build();
     }
 
 }
